@@ -1,10 +1,43 @@
 version: '3'
 
+volumes:
+  db_data:
+  traefik_data:
+
+networks:
+  wordpress-network:
+    driver: bridge
+
 services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    networks:
+      - wordpress-network
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+
+  traefik:
+    image: traefik:v2.10
+    restart: unless-stopped
+    networks:
+      - wordpress-network
+    command:
+      - "--api=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.wordpress.address=:8080"
+      - "--entrypoints.pma.address=:8081"
+    ports:
+      - "${TRAEFIK_PORT:-8080}:8080"
+      - "${TRAEFIK_PMA_PORT:-8081}:8081"
+    volumes:
+      - traefik_data:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   wp:
     image: wordpress:latest # https://hub.docker.com/_/wordpress/
-    ports:
-      - ${IP}:${PORT}:80 # change ip if required
     volumes:
       - ./config/wp_php.ini:/usr/local/etc/php/conf.d/conf.ini
       - ./wp-app:/var/www/html # Full wordpress project
@@ -17,8 +50,13 @@ services:
       WORDPRESS_DB_PASSWORD: "${DB_ROOT_PASSWORD}"
     depends_on:
       - db
-    links:
-      - db
+    networks:
+      - wordpress-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wordpress.rule=Host(`${WORDPRESS_DOMAIN}`)"
+      - "traefik.http.routers.wordpress.entrypoints=wordpress"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
 
   wpcli:
     image: wordpress:cli
@@ -33,6 +71,8 @@ services:
     depends_on:
       - db
       - wp
+    networks:
+      - wordpress-network
 
   pma:
     image: phpmyadmin:latest  # https://hub.docker.com/_/phpmyadmin
@@ -42,19 +82,20 @@ services:
       PMA_PORT: 3306
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
       UPLOAD_LIMIT: 50M
-    ports:
-      - ${IP}:8080:80
-    links:
-      - db:db
     volumes:
      - ./config/pma_php.ini:/usr/local/etc/php/conf.d/conf.ini
      - ./config/pma_config.php:/etc/phpmyadmin/config.user.inc.php
+    networks:
+      - wordpress-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.phpmyadmin.rule=Host(`${PMA_DOMAIN}`)"
+      - "traefik.http.routers.phpmyadmin.entrypoints=pma"
+      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
 
   db:
     image: mysql:latest # https://hub.docker.com/_/mysql/ - or mariadb https://hub.docker.com/_/mariadb
     # platform: linux/x86_64  # Uncomment if your machine is running on arm (ex: Apple Silicon processor)
-    ports:
-      - ${IP}:3306:3306 # change ip if required
     command: [
         '--character-set-server=utf8mb4',
         '--collation-server=utf8mb4_unicode_ci'
@@ -65,6 +106,5 @@ services:
     environment:
       MYSQL_DATABASE: "${DB_NAME}"
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
-
-volumes:
-  db_data:
+    networks:
+      - wordpress-network
