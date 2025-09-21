@@ -19,7 +19,7 @@ Contents:
 
 Make sure you have the latest versions of **Docker** and **Docker Compose** installed on your machine.
 
-Clone this repository or copy the files from this repository into a new folder. In the **docker-compose.yml** file you may change the IP address (in case you run multiple containers) or the database from MySQL to MariaDB.
+Clone this repository or copy the files from this repository into a new folder. In the **docker compose.yml** file you may change the IP address (in case you run multiple containers) or the database from MySQL to MariaDB.
 
 Make sure to [add your user to the `docker` group](https://docs.docker.com/install/linux/linux-postinstall/#manage-docker-as-a-non-root-user) when using Linux.
 
@@ -35,13 +35,13 @@ Edit the `.env` file to change the default IP address, MySQL root password and W
 
 ## Installation
 
-Open a terminal and `cd` to the folder in which `docker-compose.yml` is saved and run:
+Open a terminal and `cd` to the folder in which `docker compose.yml` is saved and run:
 
 ```
-docker-compose up
+docker compose up
 ```
 
-This creates two new folders next to your `docker-compose.yml` file.
+This creates two new folders next to your `docker compose.yml` file.
 
 * `wp-data` – used to store and restore database dumps
 * `wp-app` – the location of your WordPress application
@@ -57,13 +57,13 @@ For convenience you may add a new entry into your hosts file.
 You can start the containers with the `up` command in daemon mode (by adding `-d` as an argument) or by using the `start` command:
 
 ```
-docker-compose start
+docker compose start
 ```
 
 ### Stopping containers
 
 ```
-docker-compose stop
+docker compose stop
 ```
 
 ### Removing containers
@@ -71,18 +71,18 @@ docker-compose stop
 To stop and remove all the containers use the`down` command:
 
 ```
-docker-compose down
+docker compose down
 ```
 
 Use `-v` if you need to remove the database volume which is used to persist the database:
 
 ```
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Project from existing source
 
-Copy the `docker-compose.yml` file into a new directory. In the directory you create two folders:
+Copy the `docker compose.yml` file into a new directory. In the directory you create two folders:
 
 * `wp-data` – here you add the database dump
 * `wp-app` – here you copy your existing WordPress code
@@ -90,7 +90,7 @@ Copy the `docker-compose.yml` file into a new directory. In the directory you cr
 You can now use the `up` command:
 
 ```
-docker-compose up
+docker compose up
 ```
 
 This will create the containers and populate the database with the given dump. You may set your host entry and change it in the database, or you simply overwrite it in `wp-config.php` by adding:
@@ -108,7 +108,7 @@ define('WP_SITEURL','http://wp-app.local');
 
 ### Developing a Theme
 
-Configure the volume to load the theme in the container in the `docker-compose.yml`:
+Configure the volume to load the theme in the container in the `docker compose.yml`:
 
 ```
 volumes:
@@ -117,7 +117,7 @@ volumes:
 
 ### Developing a Plugin
 
-Configure the volume to load the plugin in the container in the `docker-compose.yml`:
+Configure the volume to load the plugin in the container in the `docker compose.yml`:
 
 ```
 volumes:
@@ -131,19 +131,19 @@ The docker compose configuration also provides a service for using the [WordPres
 Sample command to install WordPress:
 
 ```
-docker-compose run --rm wpcli core install --url=http://localhost --title=test --admin_user=admin --admin_email=test@example.com
+docker compose run --rm wpcli core install --url=http://localhost --title=test --admin_user=admin --admin_email=test@example.com
 ```
 
 Or to list installed plugins:
 
 ```
-docker-compose run --rm wpcli plugin list
+docker compose run --rm wpcli plugin list
 ```
 
 For an easier usage you may consider adding an alias for the CLI:
 
 ```
-alias wp="docker-compose run --rm wpcli"
+alias wp="docker compose run --rm wpcli"
 ```
 
 This way you can use the CLI command above as follows:
