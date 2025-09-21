@@ -1,48 +1,20 @@
 version: '3'
 
-volumes:
-  db_data:
-  traefik_data:
-
-networks:
-  wordpress-network:
-    driver: bridge
-
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    networks:
-      - wordpress-network
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-
-  traefik:
-    image: traefik:v2.10
-    restart: unless-stopped
-    networks:
-      - wordpress-network
-    command:
-      - "--api=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=wordpress-network"
-      - "--providers.docker.constraints=Label(`com.docker.compose.project`, `${COMPOSE_PROJECT_NAME:-wordpress-docker-compose-cloudflared}`)"
-      - "--entrypoints.web.address=:8080"
-      - "--entrypoints.pma.address=:8081"
-    ports:
-      - "${TRAEFIK_PORT:-8080}:8080"
-      - "${TRAEFIK_PMA_PORT:-8081}:8081"
-    volumes:
-      - traefik_data:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-
+    depends_on:
+      - wp
   wp:
     image: wordpress:latest # https://hub.docker.com/_/wordpress/
+    ports:
+      - ${IP}:${PORT}:80 # change ip if required
     volumes:
       - ./config/wp_php.ini:/usr/local/etc/php/conf.d/conf.ini
-      - ./config/apache2.conf:/etc/apache2/conf-available/servername.conf
       - ./wp-app:/var/www/html # Full wordpress project
       #- ./plugin-name/trunk/:/var/www/html/wp-content/plugins/plugin-name # Plugin development
       #- ./theme-name/trunk/:/var/www/html/wp-content/themes/theme-name # Theme development
@@ -52,20 +24,9 @@ services:
       WORDPRESS_DB_USER: root
       WORDPRESS_DB_PASSWORD: "${DB_ROOT_PASSWORD}"
     depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - wordpress-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.wordpress.rule=Host(`${WORDPRESS_DOMAIN}`)"
-      - "traefik.http.routers.wordpress.entrypoints=web"
-      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
-    command: >
-      bash -c "
-      a2enconf servername &&
-      docker-entrypoint.sh apache2-foreground
-      "
+      - db
+    links:
+      - db
 
   wpcli:
     image: wordpress:cli
@@ -78,14 +39,8 @@ services:
       WORDPRESS_DB_USER: root
       WORDPRESS_DB_PASSWORD: "${DB_ROOT_PASSWORD}"
     depends_on:
-      db:
-        condition: service_healthy
-      wp:
-        condition: service_started
-    networks:
-      - wordpress-network
-    command: ["wp", "core", "version"]
-    restart: "no"
+      - db
+      - wp
 
   pma:
     image: phpmyadmin:latest  # https://hub.docker.com/_/phpmyadmin
@@ -95,20 +50,19 @@ services:
       PMA_PORT: 3306
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
       UPLOAD_LIMIT: 50M
+    ports:
+      - ${IP}:8080:80
+    links:
+      - db:db
     volumes:
      - ./config/pma_php.ini:/usr/local/etc/php/conf.d/conf.ini
      - ./config/pma_config.php:/etc/phpmyadmin/config.user.inc.php
-    networks:
-      - wordpress-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.phpmyadmin.rule=Host(`${PMA_DOMAIN}`)"
-      - "traefik.http.routers.phpmyadmin.entrypoints=pma"
-      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
 
   db:
     image: mysql:latest # https://hub.docker.com/_/mysql/ - or mariadb https://hub.docker.com/_/mariadb
     # platform: linux/x86_64  # Uncomment if your machine is running on arm (ex: Apple Silicon processor)
+    ports:
+      - ${IP}:3306:3306 # change ip if required
     command: [
         '--character-set-server=utf8mb4',
         '--collation-server=utf8mb4_unicode_ci'
@@ -119,11 +73,6 @@ services:
     environment:
       MYSQL_DATABASE: "${DB_NAME}"
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
-    networks:
-      - wordpress-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+
+volumes:
+  db_data:
