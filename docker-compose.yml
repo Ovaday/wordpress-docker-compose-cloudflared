@@ -27,6 +27,8 @@ services:
       - "--api=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=wordpress-network"
+      - "--providers.docker.constraints=Label(`com.docker.compose.project`, `${COMPOSE_PROJECT_NAME:-wordpress-docker-compose-cloudflared}`)"
       - "--entrypoints.web.address=:8080"
       - "--entrypoints.pma.address=:8081"
     ports:
